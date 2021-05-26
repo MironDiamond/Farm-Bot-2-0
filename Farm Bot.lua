@@ -1,26 +1,28 @@
 require ("moonloader")
 
+script_version = 1.1
+
 ffi = require("ffi")
 https = require 'ssl.https'
+effil = require("effil")
 dlstatus = require('moonloader').download_status
 memory = require "memory"
 sampev = require "lib.samp.events"
+encoding = require("encoding")
+encoding.default = ("CP1251")
+u8 = encoding.UTF8
 
---[[
-
-Задания:
-
-- Авто-обновление.
-- Защита от админа
-
---]]
+ANSWER = {"ну дда бляаяяять", "yes", "нет блять не тут", "да нахуй", "блять тута нахуй ебать", "таа ддддаааааа заебали", "угу нахуй", "типо тута ебать", "нет блять, в школе", "нет лол"}
 
 FARM = {
 	[1] = {
 		teleport = {x = 243.23791503906, y = 1130.6599121094},
-		barn = {x = 244.4012, y = 1018.5501, z = 25.5234},
-		barrel = {x = 271.0201, y = 1022.5037, z = 26.3266},
-		corners = {{x = 237.72822570801, y = 1029.7906494141, z = 25.491373062134},{x = 283.48553466797, y = 1100.7864990234, z = 11.511716842651}},
+		barn = {x = 256.5705, y = 1170.1632, z = 11.8634},
+		barrel = {x = 265.6364, y = 1169.2485, z = 10.9427},
+		corners = {
+			{x = 218.24978637695, y = 1118.3126220703, z = 13.920701980591},
+			{x = 267.80545043945, y = 1157.3162841797, z = 10.98282623291}
+		},
 		run = {
 			to_farm = {
 				{x = 246.89961242676, y = 1161.2281494141},
@@ -45,7 +47,10 @@ FARM = {
 		teleport = {x = 260.34246826172, y = 1078.6431884766},
 		barn = {x = 244.4012, y = 1018.5501, z = 25.5234},
 		barrel = {x = 271.0201, y = 1022.5037, z = 26.3266},
-		corners = {{x = 237.72822570801, y = 1029.7906494141, z = 25.491373062134},{x = 283.48553466797, y = 1100.7864990234, z = 11.511716842651}},
+		corners = {
+			{x = 237.72822570801, y = 1029.7906494141, z = 25.491373062134},
+			{x = 283.48553466797, y = 1100.7864990234, z = 11.511716842651}
+		},
 		run = {
 			to_farm = {
 				{x = 254.83152770996, y = 1027.6285400391},
@@ -70,7 +75,10 @@ FARM = {
 		teleport = {x = -1034.1192626953, y = -2497.671875},
 		barn = {x = -1093.0900, y = -2529.8972, z = 62.3942},
 		barrel = {x = -1085.5282, y = -2518.8198, z = 62.5373},
-		corners = {{x = -1075.0402832031, y = -2523.3872070313, z = 65.230201721191},{x = -994.62298583984, y = -2473.0451660156, z = 80.555137634277}},
+		corners = {
+			{x = -1075.0402832031, y = -2523.3872070313, z = 65.230201721191},
+			{x = -994.62298583984, y = -2473.0451660156, z = 80.555137634277}
+		},
 		run = {
 			to_farm = {
 				{x = -1078.8646240234, y = -2505.5029296875},
@@ -95,7 +103,10 @@ FARM = {
 		teleport = {x = -1033.2220458984, y = -2540.40625},
 		barn = {x = -1034.0563, y = -2573.7393, z = 79.6866},
 		barrel = {x = -1014.4372, y = -2568.0100, z = 81.2644},
-		corners = {{x = -1079.6032714844, y = -2567.4880371094, z = 72.828239440918},{x = -994.09826660156, y = -2522.8913574219, z = 85.263885498047}},
+		corners = {
+			{x = -1079.6032714844, y = -2567.4880371094, z = 72.828239440918},
+			{x = -994.09826660156, y = -2522.8913574219, z = 85.263885498047}
+		},
 		run = {
 			to_farm = {
 				{x = -1035.1861572266, y = -2558.7761230469},
@@ -118,9 +129,12 @@ FARM = {
 
 	[5] = {
 		teleport = {x = -423.18817138672, y = -1603.5816650391},
-		barn = {x = 256.5705, y = 1170.1632, z = 11.8634},
-		barrel = {x = 265.6364, y = 1169.2485, z = 10.9427},
-		corners = {{x = 218.24978637695, y = 1118.3126220703, z = 13.920701980591},{x = 267.80545043945, y = 1157.3162841797, z = 10.98282623291}},
+		barn = {x = -496.0988, y = -1614.0940, z = 5.7531},
+		barrel = {x = -472.4452, y = -1585.5325, z = 7.7431},
+		corners = {
+			{x = -462.91900634766, y = -1667.6383056641, z = 11.071342468262},
+			{x = -384.56832885742, y = -1565.8736572266, z = 21.964479446411}
+		},
 		run = {
 			to_farm = {
 				{x = -481.67385864258, y = -1597.9051513672},
@@ -142,33 +156,44 @@ FARM = {
 	}
 }
 
-BOT_MODE = 0
+VK_USER = "238033416"
+VK_GROUP = "204756711"
+VK_TOKEN = "547c5b821b17f085a449042dff96427d557e84e049e81787f5d45dbef28b353c7ce7cdc341bd3bc8bf1e8"
+
+BOT_MODE = 2
 CURRENT_FARM = 0
 BOT_MODE_SET_ID = -1
+
+CHATLOG = false
 
 -- Script
 
 function main()
 	if not isSampLoaded() or not isSampfuncsLoaded() then return end
 	while not isSampAvailable() do wait(0) end
+	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {8B008B}Miron Diamond", 0x800080)
+	sampAddChatMessage("[Farm Bot]{FFFFFF} Команды: {8B008B}/bot{FFFFFF} | {8B008B}/botstop{FFFFFF} | {8B008B}/botoff{FFFFFF}", 0x800080)
+	math.randomseed(os.clock())
+	AutoUpdate()
 	Register_Thread()
 	Register_Commands()
+	VK_CONNECT()
+	while not key do wait(10) end
+	loop_async_http_request(server .. '?act=a_check&key=' .. key .. '&ts=' .. ts .. '&wait=25', '')
 	memory.setuint8(7634870, 1, false)
 	memory.setuint8(7635034, 1, false)
 	memory.fill(7623723, 144, 8, false)
 	memory.fill(5499528, 144, 6, false)
-	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {DAA520}Miron Diamond", 0xB8860B)
-	sampAddChatMessage("[Farm Bot]{FFFFFF} Команды: {DAA520}/bot (ферма){FFFFFF} | {DAA520}/botoff", 0xB8860B)
 	while true do
-		if (BOT_MODE ~= 0) and (sampGetPlayerSpecialAction(MyID()) ~= 0 or BOT_MODE_SET_ID ~= -1) then
+		if (BOT_MODE ~= 0) and (sampGetPlayerSpecialAction(MyID()) ~= 0 or BOT_MODE_SET_ID ~= -1) and CURRENT_FARM > 0 then
 			local mx, my, mz = getCharCoordinates(PLAYER_PED)
 			if getDistanceBetweenCoords2d(mx, my, FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y) < 7 then
 				Alt()
 			end
 		end
-		if not BOT_ERROR and BOT_MODE == 3 and COLLECT_WATER then
+		if not BOT_ERROR and BOT_MODE == 3 and COLLECT_WATER and CURRENT_FARM > 0 then
 			local mx, my, mz = getCharCoordinates(PLAYER_PED)
-			if getDistanceBetweenCoords2d(mx, my, FARM[CURRENT_FARM].barell.x, FARM[CURRENT_FARM].barrel.y) < 7 then
+			if getDistanceBetweenCoords2d(mx, my, FARM[CURRENT_FARM].barrel.x, FARM[CURRENT_FARM].barrel.y) < 7 then
 				Alt()
 			end
 		end
@@ -176,35 +201,78 @@ function main()
 	end
 end
 
--- Register
+function AutoUpdate()
+	lua_thread.create(function()
+		local update_url = "https://raw.githubusercontent.com/MironDiamond/Farm-Bot-2-0/main/update.ini"
+		local update_text = https.request(update_url)
+		local update_version = update_text:match("version=(.*)")
+		local script_url = "https://raw.githubusercontent.com/MironDiamond/Farm-Bot-2-0/main/Farm%20Bot.lua"
+		local script_path = thisScript().path
+		if tonumber(update_version) > script_version then
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Обнаружена новая версия! Обновление..", 0x800080)
+			downloadUrlToFile(script_url, script_path, function(id, status)
+				if status == dlstatus.STATUS_ENDDOWNLOADDATA then
+					sampAddChatMessage("[Farm Bot]{FFFFFF} Обновление завершено.", 0x800080)
+					thisScript():reload()
+				end
+			end)
+		end
+	end)
+end
 
 function Register_Commands()
-	sampRegisterChatCommand("bot", function(arg)
-		if tonumber(arg) then
-			if tonumber(arg) <= 5 or tonumber(arg) >= 1 then
-				CURRENT_FARM = arg
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {DAA520}№"..arg..".", 0xB8860B)
-			else
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: {DAA520}/bot [1-5]", 0xB8860B)
+	sampRegisterChatCommand("bot", function()
+		local x, y = getCharCoordinates(PLAYER_PED)
+		for id, data in ipairs(FARM) do
+			if isCoordInArea2d(x, y, FARM[id].corners[1].x, FARM[id].corners[1].y, FARM[id].corners[2].x, FARM[id].corners[2].y) then
+				sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..id..".", 0x800080)
+				CURRENT_FARM = id
+				T_Search:run()
+				break
+		 	elseif id == 5 then
+				sampAddChatMessage("[Farm Bot]{FFFFFF} Вы находитесь не на ферме.", 0x800080)
 			end
-		else
-			sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: {DAA520}/bot [1-5]", 0xB8860B)
 		end
 	end)
 
+	sampRegisterChatCommand("botstop", function()
+		sampAddChatMessage("[Farm Bot]{FFFFFF} Бот остановлен.", 0x800080)
+		T_Search:terminate()
+	end)
+
 	sampRegisterChatCommand("botoff", function()
-		sampAddChatMessage("[Farm Bot]{FFFFFF} Бот отключён.", 0xB8860B)
+		sampAddChatMessage("[Farm Bot]{FFFFFF} Бот отключён.", 0x800080)
 		thisScript():unload()
 	end)
 end
 
 function Register_Thread()
 	T_Search = lua_thread.create_suspended(Search)
+
+	T_Answer_Msg = lua_thread.create_suspended(function()
+		local ans_number = math.random(1, 9)
+		wait(2405)
+		sampSendChat(ANSWER[ans_number])
+	end)
+
+	T_Answer_Dialog = lua_thread.create_suspended(function()
+		wait(1201)
+		sampSendDialogResponse(id, 0, -1, -1)
+		wait(2405)
+		local ans_number = math.random(1, 8)
+		sampSendChat(ANSWER[ans_number])
+	end)
 end
 
 -- Events
 
 function sampev.onShowDialog(id, style, title, button1, button2, text)
+	if text:find("Админ") then
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+		T_Search:terminate()
+		T_Answer_Dialog:run()
+	end
+
 	if BOT_MODE_SET_ID ~= -1 then
 		if title:find("Амбар") and text:find("Инструменты для работы") then
 			sampSendDialogResponse(id, 1, 1, -1)
@@ -243,11 +311,32 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 end
 
 function sampev.onServerMessage(color, text)
+	if CHATLOG then
+		if text:find("%[Информация%] {ffffff}Вы выполнили задание") or text:find("Администратор") or text:find("%[Информация%] {ffffff}") then
+			VK_SEND("[Чат]: "..text)
+		end
+	end
+
+	if text:find("телепортировал вас") then
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+		T_Search:terminate()
+		lua_thread.create(function()
+			wait(2000)
+			sampSendChat("эээээээээээээээ")
+		end)
+	end
+
+	if (text:find("тут") or text:find("здесь")) and text:find("Администратор") then
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+		T_Search:terminate()
+		T_Answer_Msg:run()
+	end
+
 	if BOT_MODE ~= 0 then
 		if text:find("%[Информация%] {ffffff}Вы вернули в амбар инструмент:") then
-			setGameKeyState(21, 255)
+			Alt()
 		elseif text:find("%[Информация%] {ffffff}Вы вернули в амбар саженец:") then
-			setGameKeyState(21, 255)
+			Alt()
 		end
 	end
 
@@ -284,9 +373,127 @@ function sampev.onDisplayGameText(style, time, text)
 	end
 end
 
-function sampev.onPlayerStreamIn() if getCharModel(PLAYER_PED) == 132 or getCharModel(PLAYER_PED) == 198 then return false end end
+function sampev.onPlayerStreamIn() return false end
 
-function sampev.onVehicleStreamIn() if getCharModel(PLAYER_PED) == 132 or getCharModel(PLAYER_PED) == 198 then return false end end
+function sampev.onVehicleStreamIn() return false end
+
+-- VK
+
+function VK_SEND(msg)
+	msg = msg:gsub('{......}', '')
+	msg = u8(msg)
+	msg = url_encode(msg)
+	local keyboard = VK_KEYBOARD()
+	keyboard = u8(keyboard)
+	keyboard = url_encode(keyboard)
+	msg = msg .. '&keyboard=' .. keyboard
+	async_http_request('https://api.vk.com/method/messages.send', 'user_id=' .. VK_USER .. '&message=' .. msg .. '&access_token=' .. VK_TOKEN .. '&v=5.80',	function (result)
+		local t = decodeJson(result)
+		if not t then
+			return
+		end
+	end)
+end
+
+function VK_READ(result)
+	if result then
+		local t = decodeJson(result)
+		if t.ts then
+			ts = t.ts
+		end
+		for k, v in ipairs(t.updates) do
+			if v.type == 'message_new' and v.object.text then
+				local text = v.object.text .. ' '
+				local user_id = tostring(v.object.from_id)
+				text = u8:decode(text)
+				if user_id == VK_USER then
+					if text:find("/chatlog") then
+						CHATLOG = not CHATLOG
+						if CHATLOG then
+							VK_SEND("Команда распознана! Мониторинг действий активирован.")
+						else
+							VK_SEND("Команда распознана! Мониторинг действий деактивирован.")
+						end
+					elseif text:find("/stats") then
+						VK_SEND("Команда распознана! Высылаю статистику персонажа:\n[1] Сервер: "..sampGetCurrentServerName().."\n[2] Ник: "..sampGetPlayerNickname(MyID()).."("..MyID()..")\n[3] Здоровье: "..sampGetPlayerHealth(MyID()).."%\n[4] Деньги: "..getPlayerMoney(PLAYER_CHAR).."$")
+					elseif text:find("Включить") then
+						local x, y = getCharCoordinates(PLAYER_PED)
+						for id, data in ipairs(FARM) do
+							if isCoordInArea2d(x, y, FARM[id].corners[1].x, FARM[id].corners[1].y, FARM[id].corners[2].x, FARM[id].corners[2].y) then
+								VK_SEND("Команда распознана! Бот начал работать на ферме №"..id..".")
+								CURRENT_FARM = id
+								T_Search:run()
+								break
+							elseif id == 5 then
+								VK_SEND("Ошибка! Вы находитесь не на ферме.")
+							end
+						end
+					elseif text:find("Остановить") then
+						VK_SEND("Команда распознана! Бот остановлен.")
+						T_Search:terminate()
+					elseif text:find("Выключить") then
+						VK_SEND("Команда распознана! Бот отключен.")
+						thisScript():unload()
+					elseif text:find("/send (.+)") then
+						local text = text:match("/send (.+)")
+						if text then
+							sampProcessChatInput(text)
+							VK_SEND("Сообщение отправлено на сервер!")
+						else
+							VK_SEND("Введите сообщение которе нужно отправить на сервер.")
+						end
+					else
+						VK_SEND("Команды бота:\n1. /stats\n2. /chatlog\n3. /send")
+					end
+				end
+			end
+		end
+	end
+end
+
+function VK_CONNECT()
+	async_http_request('https://api.vk.com/method/groups.getLongPollServer?group_id=' .. VK_GROUP .. '&access_token=' .. VK_TOKEN .. '&v=5.80', '', function (result)
+		if result then
+			if not result:sub(1,1) == '{' then
+				return
+			end
+			local t = decodeJson(result)
+			if t.error then
+				return
+			end
+			server = t.response.server
+			ts = t.response.ts
+			key = t.response.key
+		end
+	end)
+end
+
+function VK_KEYBOARD()
+	local keyboard = {}
+	keyboard.one_time = false
+	keyboard.buttons = {}
+	keyboard.buttons[1] = {}
+	local row = keyboard.buttons[1]
+	row[1] = {}
+	row[1].action = {}
+	row[1].color = 'positive'
+	row[1].action.type = 'text'
+	row[1].action.payload = '{"button": "status"}'
+	row[1].action.label = 'Включить'
+	row[2] = {}
+	row[2].action = {}
+	row[2].color = 'primary'
+	row[2].action.type = 'text'
+	row[2].action.payload = '{"button": "status"}'
+	row[2].action.label = 'Остановить'
+	row[3] = {}
+	row[3].action = {}
+	row[3].color = 'negative'
+	row[3].action.type = 'text'
+	row[3].action.payload = '{"button": "status"}'
+	row[3].action.label = 'Выключить'
+	return encodeJson(keyboard)
+end
 
 -- Function
 
@@ -378,7 +585,7 @@ function Search()
 								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 								 break
 								else
-								 setGameKeyState(21, 255)
+								 Alt()
 							 end
 							 wait(1000)
 						  end
@@ -416,7 +623,7 @@ function Search()
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 									break
 							 	else
-								 setGameKeyState(21, 255)
+								 Alt()
 								end
 								wait(1000)
 							end
@@ -454,7 +661,7 @@ function Search()
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 									break
 							 	else
-								 setGameKeyState(21, 255)
+								 Alt()
 								end
 								wait(1000)
 							end
@@ -514,6 +721,67 @@ function isCoordInArea2d(xW, yW, x1, y1, x2, y2)
     else
         return false
     end
+end
+
+function requestRunner()
+	return effil.thread(function(u, a)
+		local https = require 'ssl.https'
+		local ok, result = pcall(https.request, u, a)
+		if ok then
+			return {true, result}
+		else
+			return {false, result}
+		end
+	end)
+end
+
+function threadHandle(runner, url, args, resolve, reject)
+	local t = runner(url, args)
+	local r = t:get(0)
+	while not r do
+		r = t:get(0)
+		wait(0)
+	end
+	local status = t:status()
+	if status == 'completed' then
+		local ok, result = r[1], r[2]
+		if ok then resolve(result) else reject(result) end
+	elseif err then
+		reject(err)
+	elseif status == 'canceled' then
+		reject(status)
+	end
+	t:cancel(0)
+end
+
+function async_http_request(url, args, resolve, reject)
+	local runner = requestRunner()
+	if not reject then reject = function() end end
+	lua_thread.create(function()
+		threadHandle(runner, url, args, resolve, reject)
+	end)
+end
+
+function loop_async_http_request(url, args, reject)
+	local runner = requestRunner()
+	if not reject then reject = function() end end
+	lua_thread.create(function()
+		while true do
+			while not key do wait(0) end
+			url = server .. '?act=a_check&key=' .. key .. '&ts=' .. ts .. '&wait=25'
+			threadHandle(runner, url, args, VK_READ, reject)
+		end
+	end)
+end
+
+function char_to_hex(str)
+  return string.format("%%%02X", string.byte(str))
+end
+
+function url_encode(str)
+  local str = string.gsub(str, "\\", "\\")
+  local str = string.gsub(str, "([^%w])", char_to_hex)
+  return str
 end
 
 -- by Miron Diamond
