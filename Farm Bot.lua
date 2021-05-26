@@ -1,6 +1,6 @@
 require ("moonloader")
 
-script_version = 1.2
+script_version = 1.3
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -166,6 +166,16 @@ CHATLOG = false
 
 ANSWER = {"ну дда бляаяяять", "yes", "нет блять не тут", "да нахуй", "блять тута нахуй ебать", "таа ддддаааааа заебали", "угу нахуй", "типо тута ебать", "нет блять, в школе", "нет лол"}
 
+ffi.cdef [[
+    typedef unsigned long HANDLE;
+    typedef HANDLE HWND;
+    typedef const char *LPCTSTR;
+
+    HWND GetActiveWindow(void);
+
+    bool SetWindowTextA(HWND hWnd, LPCTSTR lpString);
+]]
+
 -- Script
 
 function main()
@@ -224,6 +234,7 @@ end
 
 function Register_Commands()
 	sampRegisterChatCommand("bot", function()
+		ffi.C.SetWindowTextA(ffi.C.GetActiveWindow(), sampGetCurrentServerName())
 		local x, y = getCharCoordinates(PLAYER_PED)
 		for id, data in ipairs(FARM) do
 			if isCoordInArea2d(x, y, FARM[id].corners[1].x, FARM[id].corners[1].y, FARM[id].corners[2].x, FARM[id].corners[2].y) then
@@ -388,7 +399,7 @@ end
 
 function sampev.onShowDialog(id, style, title, button1, button2, text)
 	if text:find("Админ") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
 		T_Search:terminate()
 		T_Answer_Dialog:run()
 	end
@@ -437,6 +448,10 @@ function sampev.onServerMessage(color, text)
 		end
 	end
 
+	if text:find("%[Ошибка%] {ffffff}Сначала отнесите урожай в амбар%.") then
+		RUN_AMBAR = true
+	end
+
 	if text:find("телепортировал вас") then
 		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
 		T_Search:terminate()
@@ -462,10 +477,6 @@ function sampev.onServerMessage(color, text)
 
 	if (text:find('Тут еще рано собирать урожай') or text:find('у вас уже есть в руках урожай') or text:find('Тут уже работает другой игрок')) then
 		BOT_ERROR = true
-	end
-
-	if text:find("%[Ошибка%] {ffffff}Сначала отнесите урожай в амбар%.") then
-		RUN_AMBAR = true
 	end
 
 	if text:find("%[Ошибка%] {ffffff}У вас должно быть полное ведро воды%. Наберите воды с бочки%.") then
@@ -624,12 +635,23 @@ function Search()
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
 									break
-							 	else
+								elseif RUN_AMBAR then
+								 break
+								else
 								 Alt()
 								end
 								wait(1000)
 							end
 							while sampGetPlayerAnimationId(MyID()) == 1548 do wait(0) end
+							if RUN_AMBAR then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+							end
 						end
 					end
 				end
@@ -662,12 +684,23 @@ function Search()
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
 									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
 									break
-							 	else
+								elseif RUN_AMBAR then
+								 break
+								else
 								 Alt()
 								end
 								wait(1000)
 							end
 							while sampGetPlayerAnimationId(MyID()) == 532 do wait(0) end
+							if RUN_AMBAR then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+							end
 						end
 					end
 				end
