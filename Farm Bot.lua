@@ -1,6 +1,6 @@
 require ("moonloader")
 
-script_version = 1.3
+script_version = 1.4
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -79,12 +79,12 @@ FARM = {
 		},
 		run = {
 			to_farm = {
-				{x = -1078.8646240234, y = -2505.5029296875},
+				{x = -1090.1292724609, y = -2512.126953125},
 				{x = -1043.7462158203, y = -2506.2260742188}
 			},
 			from_farm = {
 				{x = -1043.7462158203, y = -2506.2260742188},
-				{x = -1078.8646240234, y = -2505.5029296875}
+				{x = -1090.1292724609, y = -2512.126953125}
 			},
 			to_home = {
 				{x = -1092.5837402344, y = -2513.0617675781},
@@ -190,11 +190,17 @@ function main()
 	VK_CONNECT()
 	while not key do wait(10) end
 	loop_async_http_request(server .. '?act=a_check&key=' .. key .. '&ts=' .. ts .. '&wait=25', '')
-	memory.setuint8(7634870, 1, false)
-	memory.setuint8(7635034, 1, false)
-	memory.fill(7623723, 144, 8, false)
-	memory.fill(5499528, 144, 6, false)
 	while true do
+		local chatstring = sampGetChatString(99)
+  	if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
+			sampDisconnectWithReason(false)
+			wait(100)
+			LAST_NICK = getRPNick()
+			sampSetLocalPlayerName(LAST_NICK)
+      wait(20000)
+      sampSetGamestate(1)
+  	end
+
 		if CURRENT_FARM > 0 then
 			if BOT_MODE ~= 0 and (sampGetPlayerSpecialAction(MyID()) ~= 0 or BOT_MODE_SET_ID ~= -1) then
 				local mx, my, mz = getCharCoordinates(PLAYER_PED)
@@ -233,24 +239,41 @@ function AutoUpdate()
 end
 
 function Register_Commands()
-	sampRegisterChatCommand("bot", function()
+	sampRegisterChatCommand("bot", function(arg)
 		ffi.C.SetWindowTextA(ffi.C.GetActiveWindow(), sampGetCurrentServerName())
-		local x, y = getCharCoordinates(PLAYER_PED)
-		for id, data in ipairs(FARM) do
-			if isCoordInArea2d(x, y, FARM[id].corners[1].x, FARM[id].corners[1].y, FARM[id].corners[2].x, FARM[id].corners[2].y) then
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..id.."{FFFFFF}.", 0x800080)
-				CURRENT_FARM = id
+		if tonumber(arg) then
+			arg = tonumber(arg)
+			if arg <= 5 and arg >= 1 then
+				sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..arg.."{FFFFFF}.", 0x800080)
+				CURRENT_FARM = arg
 				T_Search:run()
-				break
-		 	elseif id == 5 then
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Вы находитесь не на ферме.", 0x800080)
+			else
+				sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: /bot {8B008B}[1-5]{FFFFFF}.", 0x800080)
 			end
+		else
+			lua_thread.create(function()
+				CURRENT_FARM = 0
+				sampSendChat("/gps")
+				while CURRENT_FARM == 0 do wait(0) end
+				placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
+				wait(1500)
+				sampProcessChatInput("/cm")
+				local x, y, z = getCharCoordinates(PLAYER_PED)
+				while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 4 do wait(2000)
+					x, y, z = getCharCoordinates(PLAYER_PED)
+				end
+				T_Search:run()
+			end)
 		end
 	end)
 
 	sampRegisterChatCommand("botstop", function()
 		sampAddChatMessage("[Farm Bot]{FFFFFF} Бот остановлен.", 0x800080)
 		T_Search:terminate()
+		T_Doctor:terminate()
+		BOT_MODE = 0
+		CURRENT_FARM = 0
+		BOT_MODE_SET_ID = -1
 	end)
 
 	sampRegisterChatCommand("botoff", function()
@@ -261,6 +284,48 @@ end
 
 function Register_Thread()
 	T_Search = lua_thread.create_suspended(Search)
+
+	T_Reconnect = lua_thread.create_suspended(function()
+		sampDisconnectWithReason(false)
+		wait(100)
+		LAST_NICK = getRPNick()
+		sampSetLocalPlayerName(LAST_NICK)
+		wait(20000)
+		sampSetGamestate(1)
+	end)
+
+	T_Doctor = lua_thread.create_suspended(function()
+		local wait_check = 0
+		local x, y, z = getCharCoordinates(PLAYER_PED)
+		local last_x, last_y, last_z = 0, 0, 0
+		while true do wait(1500)
+			x, y, z = getCharCoordinates(PLAYER_PED)
+			if round(x) ~= round(last_x) or round(y) ~= round(last_y) or round(z) ~= round(last_z) then
+				wait_check = 0
+				last_x, last_y, last_z = getCharCoordinates(PLAYER_PED)
+			else
+				wait_check = wait_check + 1
+			end
+
+			if wait_check >= 60 then
+				if CURRENT_FARM > 0 then
+					T_Search:terminate()
+					wait_check = 0
+					sampAddChatMessage("[Farm Bot]{FFFFFF} Сработала защита от простоя! Перезагрузка..", 0x800080)
+					wait(500)
+					VK_SEND("Сработала защита от простоя! Перезагрузка..")
+					wait(500)
+					placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
+					wait(1000)
+					sampProcessChatInput("/cm")
+					while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 4 do wait(2000)
+						x, y, z = getCharCoordinates(PLAYER_PED)
+					end
+					T_Search:run()
+				end
+			end
+		end
+	end)
 
 	T_Answer_Msg = lua_thread.create_suspended(function()
 		local ans_number = math.random(1, 9)
@@ -331,6 +396,7 @@ function VK_READ(result)
 					elseif text:find("Остановить") then
 						VK_SEND("Команда распознана! Бот остановлен.")
 						T_Search:terminate()
+						T_Doctor:terminate()
 					elseif text:find("Выключить") then
 						VK_SEND("Команда распознана! Бот отключен.")
 						thisScript():unload()
@@ -401,6 +467,7 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 	if text:find("Админ") then
 		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
 		T_Search:terminate()
+		T_Doctor:terminate()
 		T_Answer_Dialog:run()
 	end
 
@@ -439,6 +506,64 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 		sampSendDialogResponse(id, 0, -1, -1)
 		return false
 	end
+
+	if title:find("GPS Навигатор") then
+		sampSendDialogResponse(id, 1, 7, -1)
+		return false
+	elseif title:find("GPS | Фермы") then
+		local quest = 0
+		local farm = 0
+		local w = 0
+		for line in text:gmatch("[^\r\n]+") do
+			local q = line:match("Ферма №%d\t(%d+)\t")
+			if w == 6 then break end
+			w = w + 1
+			if q then
+				if tonumber(q) > quest then
+					farm = w
+					quest = tonumber(q)
+				end
+			end
+		end
+		if farm > 0 then
+			farm = farm - 1
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Больше всего заданий на Ферме {8B008B}№"..farm.."{FFFFFF}.", 0x800080)
+			CURRENT_FARM = farm
+		end
+		if farm > 0 then
+			sampSendDialogResponse(id, 1, (farm - 1), -1)
+			return false
+		else
+			sampSendDialogResponse(id, 1, 1, -1)
+			return false
+		end
+	end
+
+	if title:find("%(1/4%) Пароль") then
+		LAST_PASSWORD = getPassword()
+		sampSendDialogResponse(id, 1, -1, LAST_PASSWORD)
+		return false
+	elseif title:find("%[2/4%] Выберите") then
+		sampSendDialogResponse(id, 1, 0, -1)
+		return false
+	elseif title:find("%[3/4%] Выберите") then
+		sampSendDialogResponse(id, 1, 0, -1)
+		return false
+	elseif title:find('Откуда вы о нас узнали') then
+		sampSendDialogResponse(id, 1, 0,'')
+		return false
+	elseif text:find('ник игрока, пригласившего') or text:find('вас кто%-то пригласил на сервер') or title:find('Система рефералов') or text:find('который пригласил') then
+			sampSendDialogResponse(id,1,0,"Carl_Johnson")
+			return false
+	end
+
+	if title:find("Авторизация") then
+		T_Reconnect:run()
+		return false
+	end
+
+	sampSendDialogResponse(id, 0, -1, -1)
+	return false
 end
 
 function sampev.onServerMessage(color, text)
@@ -453,17 +578,19 @@ function sampev.onServerMessage(color, text)
 	end
 
 	if text:find("телепортировал вас") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
 		T_Search:terminate()
+		T_Doctor:terminate()
 		lua_thread.create(function()
 			wait(2000)
 			sampSendChat("эээээээээээээээ")
 		end)
 	end
 
-	if (text:find("тут") or text:find("здесь")) and text:find("Администратор") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.")
+	if (text:find("тут") or text:find("здесь")) and text:find("Администратор") and text:find("%?") then
+		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
 		T_Search:terminate()
+		T_Doctor:terminate()
 		T_Answer_Msg:run()
 	end
 
@@ -504,6 +631,22 @@ function sampev.onDisplayGameText(style, time, text)
 	end
 end
 
+function sampev.onShowTextDraw(id, data)
+	if id == 625 then
+		lua_thread.create(function()
+			wait(2000)
+			sampSendClickTextdraw(625)
+			wait(2000)
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Успешно зарегистрирован новый аккаунт!", 0x800080)
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Ник: {8B008B}"..LAST_NICK.."{FFFFFF} | Пароль: {8B008B}"..LAST_PASSWORD.."", 0x800080)
+			wait(100)
+			VK_SEND("Успешно зарегистрирован новый аккаунт!\nНик: "..LAST_NICK.." | Пароль: "..LAST_PASSWORD.."")
+			wait(5000)
+			sampProcessChatInput("/bot")
+		end)
+	end
+end
+
 function sampev.onPlayerStreamIn() return false end
 
 function sampev.onVehicleStreamIn() return false end
@@ -511,10 +654,15 @@ function sampev.onVehicleStreamIn() return false end
 -- Function
 
 function Search()
+	T_Doctor:run()
+	memory.setuint8(7634870, 1, false)
+	memory.setuint8(7635034, 1, false)
+	memory.fill(7623723, 144, 8, false)
+	memory.fill(5499528, 144, 6, false)
 	if CURRENT_FARM ~= 0 then
 		if getCharModel(PLAYER_PED) ~= 132 and getCharModel(PLAYER_PED) ~= 198 then
-			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
-			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 			BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
 			BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
 			wait(2000)
@@ -531,16 +679,16 @@ function Search()
 			for i, v in ipairs(getAllVehicles()) do deleteCar(v) end
 			wait(8000)
 			BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
-			BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, true)
-			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+			BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 		end
 
 		while true do wait(1000)
 			if HUNGRY_MODE then
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, true)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
 				wait(2000)
 				Alt()
@@ -564,8 +712,8 @@ function Search()
 				wait(8000)
 				BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 			end
 
 			if BOT_MODE < 3 then
@@ -589,13 +737,13 @@ function Search()
 								 break
 								elseif BOT_RELOAD_MODE then
 								 BOT_RELOAD_MODE = false
-								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
+								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
 								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 								 BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 								 BOT_MODE_SET_ID = 1
 								 while BOT_MODE_SET_ID ~= -1 do wait(0) end
-								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 								 break
 								else
 								 Alt()
@@ -605,11 +753,11 @@ function Search()
 							if RUN_AMBAR then
 								RUN_AMBAR = false
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 							end
 						end
 					end
@@ -627,13 +775,13 @@ function Search()
 									break
 							 	elseif BOT_RELOAD_MODE then
 									BOT_RELOAD_MODE = false
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 									BOT_MODE_SET_ID = 2
 									while BOT_MODE_SET_ID ~= -1 do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 									break
 								elseif RUN_AMBAR then
 								 break
@@ -646,11 +794,11 @@ function Search()
 							if RUN_AMBAR then
 								RUN_AMBAR = false
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 							end
 						end
 					end
@@ -668,21 +816,21 @@ function Search()
 									break
 							 	elseif BOT_RELOAD_MODE then
 									BOT_RELOAD_MODE = false
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 									BOT_MODE_SET_ID = 3
 									while BOT_MODE_SET_ID ~= -1 do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 									break
 								elseif COLLECT_WATER then
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 									BeginToPoint(FARM[CURRENT_FARM].barrel.x, FARM[CURRENT_FARM].barrel.y, 0.7, false, false)
 									while COLLECT_WATER do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 									break
 								elseif RUN_AMBAR then
 								 break
@@ -695,15 +843,25 @@ function Search()
 							if RUN_AMBAR then
 								RUN_AMBAR = false
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
 								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, true)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, true)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 							end
 						end
 					end
 				end
+			end
+
+			if RUN_AMBAR then
+				RUN_AMBAR = false
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
 			end
 		end
 	end
@@ -751,6 +909,49 @@ function isCoordInArea2d(xW, yW, x1, y1, x2, y2)
   else
     return false
   end
+end
+
+function getPassword()
+	local password = ""
+	local p = {'A', 'E', 'I', 'O', 'U', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'V', 'W', 'X', 'Z'}
+
+	for i = 0, 8 do
+		if math.random(1,2) == 2 then
+			password = password..string.upper(p[math.random(1, 24)])
+		else
+			password = password..string.lower(p[math.random(1, 24)])..math.random(1,9)
+		end
+	end
+
+	return password
+end
+
+function getRPNick()
+    return getWord()..'_'..getWord()
+end
+
+function getRandomWord(length)
+    local word = ''
+    for i = 1, length do
+        word = word .. string.char(math.random(97, 122))
+    end
+    return word
+end
+
+function getWord()
+    local word = ''
+    local unspoken = {'A', 'E', 'I', 'O', 'U'}
+    local spoken = {'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'V', 'W', 'X', 'Z'}
+    local wordLen = math.random(3, 10)
+    for i = 0, wordLen do
+        if i % 2 == 0 then
+            word = word..spoken[math.random(1, 19)]
+        else
+            word = word..unspoken[math.random(1, 5)]
+        end
+    end
+    word = word:lower()
+    return word:gsub("^%l", string.upper)
 end
 
 function requestRunner()
@@ -812,6 +1013,15 @@ function url_encode(str)
   local str = string.gsub(str, "\\", "\\")
   local str = string.gsub(str, "([^%w])", char_to_hex)
   return str
+end
+
+function round(number)
+  if (number - (number % 0.1)) - (number - (number % 1)) < 0.5 then
+    number = number - (number % 1)
+  else
+    number = (number - (number % 1)) + 1
+  end
+ return number
 end
 
 -- by Miron Diamond
