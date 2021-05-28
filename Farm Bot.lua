@@ -1,6 +1,6 @@
 require ("moonloader")
 
-script_version = 1.4
+script_version = 1.5
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -181,6 +181,9 @@ ffi.cdef [[
 function main()
 	if not isSampLoaded() or not isSampfuncsLoaded() then return end
 	while not isSampAvailable() do wait(0) end
+	LAST_NICK = sampGetPlayerNickname(MyID())
+	LAST_PASSWORD = "Error"
+	sampProcessChatInput("/fconnect 1 75")
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {8B008B}Miron Diamond", 0x800080)
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Команды: {8B008B}/bot{FFFFFF} | {8B008B}/botstop{FFFFFF} | {8B008B}/botoff{FFFFFF}", 0x800080)
 	math.randomseed(os.clock())
@@ -200,6 +203,15 @@ function main()
       wait(20000)
       sampSetGamestate(1)
   	end
+
+		if sampGetPlayerScore(MyID()) >= 2 then
+			sampDisconnectWithReason(false)
+			wait(100)
+			LAST_NICK = getRPNick()
+			sampSetLocalPlayerName(LAST_NICK)
+			wait(20000)
+			sampSetGamestate(1)
+		end
 
 		if CURRENT_FARM > 0 then
 			if BOT_MODE ~= 0 and (sampGetPlayerSpecialAction(MyID()) ~= 0 or BOT_MODE_SET_ID ~= -1) then
@@ -602,7 +614,7 @@ function sampev.onServerMessage(color, text)
 		end
 	end
 
-	if (text:find('Тут еще рано собирать урожай') or text:find('у вас уже есть в руках урожай') or text:find('Тут уже работает другой игрок')) then
+	if (text:find('Тут еще рано собирать урожай') or text:find('у вас уже есть в руках урожай') or text:find('Тут уже работает другой игрок') or text:find("%[Ошибка%] {ffffff}Сейчас нет заданий")) then
 		BOT_ERROR = true
 	end
 
@@ -614,7 +626,7 @@ function sampev.onServerMessage(color, text)
 		COLLECT_WATER = false
 	end
 
-	if text:find('Вы не можете выкопать урожай без лопаты') or text:find('Вы не можете выкопать ямку без лопаты') or text:find('У вас нет саженца') or text:find('Для начала возьмите ведро') or text:find('Для прополки нужны грабли') or text:find("%[Ошибка%] {ffffff}Сейчас нет заданий") then
+	if text:find('Вы не можете выкопать урожай без лопаты') or text:find('Вы не можете выкопать ямку без лопаты') or text:find('У вас нет саженца') or text:find('Для начала возьмите ведро') or text:find('Для прополки нужны грабли') then
 		BOT_RELOAD_MODE = true
 	end
 end
@@ -639,8 +651,11 @@ function sampev.onShowTextDraw(id, data)
 			wait(2000)
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Успешно зарегистрирован новый аккаунт!", 0x800080)
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Ник: {8B008B}"..LAST_NICK.."{FFFFFF} | Пароль: {8B008B}"..LAST_PASSWORD.."", 0x800080)
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Сервер: {8B008B}"..sampGetCurrentServerName().."", 0x800080)
 			wait(100)
-			VK_SEND("Успешно зарегистрирован новый аккаунт!\nНик: "..LAST_NICK.." | Пароль: "..LAST_PASSWORD.."")
+			VK_SEND("Успешно зарегистрирован новый аккаунт!\nНик: "..LAST_NICK.." | Пароль: "..LAST_PASSWORD.."\nСервер: "..sampGetCurrentServerName().."")
+			wait(500)
+			saveAccount()
 			wait(5000)
 			sampProcessChatInput("/bot")
 		end)
@@ -722,12 +737,30 @@ function Search()
 				BOT_MODE = 1
 			end
 
+			if RUN_AMBAR then
+				RUN_AMBAR = false
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
+			end
 			if BOT_MODE == 1 then
 				for i = 0, 2048 do
 					if sampIs3dTextDefined(i) then
 						local check = '[REMOVE COSTUMES]'
 						local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
 						if (text:find("можно собрать урожай") or text:find("свободное")) and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
+							if RUN_AMBAR then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
+							end
 							BeginToPoint(posX, posY, 2.6, true, false)
 							while sampGetPlayerAnimationId(MyID()) ~= 1548 and BOT_MODE_SET_ID == -1 do
 								if BOT_ERROR then
@@ -853,7 +886,6 @@ function Search()
 					end
 				end
 			end
-
 			if RUN_AMBAR then
 				RUN_AMBAR = false
 				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
@@ -874,6 +906,22 @@ end
 
 function Alt()
 	setGameKeyState(21, 255)
+end
+
+function saveAccount()
+	local all = ""
+	local filename = (getGameDirectory().."\\moonloader\\Farm Bot\\"..sampGetCurrentServerName():gsub("|", "-")..".txt")
+
+	if doesFileExist(filename) then
+		local file_r = io.open(filename, "r")
+		all = file_r:read("*a")
+		file_r:close()
+	end
+
+	local file = io.open(filename, "w")
+	all = all..LAST_NICK..":"..LAST_PASSWORD.."\n"
+	file:write(all)
+	file:close()
 end
 
 -- Technical Function
