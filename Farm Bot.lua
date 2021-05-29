@@ -3,7 +3,7 @@ script_author("Miron Diamond")
 
 require ("moonloader")
 
-script_version = 1.8
+script_version = 1.9
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -160,8 +160,6 @@ BOT_MODE = 0
 CURRENT_FARM = 0
 BOT_MODE_SET_ID = -1
 
-CHATLOG = false
-
 ANSWER = {"ну дда бляаяяять", "yes", "нет блять не тут", "да нахуй", "блять тута нахуй ебать", "таа ддддаааааа заебали", "угу нахуй", "типо тута ебать", "нет блять, в школе", "нет лол"}
 
 ffi.cdef [[
@@ -179,6 +177,7 @@ ffi.cdef [[
 function main()
 	if not isSampLoaded() or not isSampfuncsLoaded() then return end
 	while not isSampAvailable() do wait(0) end
+	sampProcessChatInput("/fconnect 1 75")
 	LAST_NICK = sampGetPlayerNickname(MyID())
 	LAST_PASSWORD = "Error"
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {8B008B}Miron Diamond", 0x800080)
@@ -187,37 +186,9 @@ function main()
 	AutoUpdate()
 	Register_Thread()
 	Register_Commands()
+	T_AutoReconnect:run()
 	while true do
 		memory.setint8(0xB7CEE4, 1)
-
-		local chatstring = sampGetChatString(99)
-  	if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
-			T_Search:terminate()
-			T_Doctor:terminate()
-			BOT_MODE = 0
-			CURRENT_FARM = 0
-			BOT_MODE_SET_ID = -1
-			sampDisconnectWithReason(false)
-			wait(100)
-			LAST_NICK = getRPNick()
-			sampSetLocalPlayerName(LAST_NICK)
-      wait(20000)
-      sampSetGamestate(1)
-  	end
-
-		if sampGetPlayerScore(MyID()) >= 2 and sampIsLocalPlayerSpawned() then
-			T_Search:terminate()
-			T_Doctor:terminate()
-			BOT_MODE = 0
-			CURRENT_FARM = 0
-			BOT_MODE_SET_ID = -1
-			sampDisconnectWithReason(1)
-			wait(100)
-			LAST_NICK = getRPNick()
-			sampSetLocalPlayerName(LAST_NICK)
-			wait(20000)
-			sampSetGamestate(1)
-		end
 
 		if CURRENT_FARM > 0 then
 			if BOT_MODE ~= 0 and (sampGetPlayerSpecialAction(MyID()) ~= 0 or BOT_MODE_SET_ID ~= -1) then
@@ -277,10 +248,11 @@ function Register_Commands()
 					wait(1500)
 					sampProcessChatInput("/cm")
 					local x, y, z = getCharCoordinates(PLAYER_PED)
-					while CURRENT_FARM >= 5 or CURRENT_FARM == 0 do wait(0) end
-					while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 4 do wait(2000)
+					while CURRENT_FARM > 5 or CURRENT_FARM == 0 do wait(0) end
+					while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 5 do wait(2000)
 						x, y, z = getCharCoordinates(PLAYER_PED)
 					end
+					wait(1000)
 					T_Search:run()
 				end)
 			end
@@ -306,6 +278,39 @@ end
 
 function Register_Thread()
 	T_Search = lua_thread.create_suspended(Search)
+
+	T_AutoReconnect = lua_thread.create_suspended(function()
+		while true do wait(0)
+			local chatstring = sampGetChatString(99)
+			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
+				T_Search:terminate()
+				T_Doctor:terminate()
+				BOT_MODE = 0
+				CURRENT_FARM = 0
+				BOT_MODE_SET_ID = -1
+				sampDisconnectWithReason(false)
+				wait(100)
+				LAST_NICK = getRPNick()
+				sampSetLocalPlayerName(LAST_NICK)
+				wait(20000)
+				sampSetGamestate(1)
+			end
+
+			if sampGetPlayerScore(MyID()) >= 2 and sampIsLocalPlayerSpawned() and CURRENT_FARM > 0 then
+				T_Search:terminate()
+				T_Doctor:terminate()
+				BOT_MODE = 0
+				CURRENT_FARM = 0
+				BOT_MODE_SET_ID = -1
+				sampDisconnectWithReason(1)
+				wait(100)
+				LAST_NICK = getRPNick()
+				sampSetLocalPlayerName(LAST_NICK)
+				wait(20000)
+				sampSetGamestate(1)
+			end
+		end
+	end)
 
 	T_Reconnect = lua_thread.create_suspended(function()
 		sampDisconnectWithReason(false)
@@ -362,7 +367,7 @@ end
 -- Events
 
 function sampev.onShowDialog(id, style, title, button1, button2, text)
-	if text:find("Админ") then
+	if text:find("Админ") and not text:find("получили бан аккаунта") then
 		sampAddChatMessage("[Farm Bot]{FFFFFF} Внимание! К вам обратился администратор.", 0x800080)
 		T_Search:terminate()
 		T_Doctor:terminate()
