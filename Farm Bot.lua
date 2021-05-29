@@ -1,10 +1,12 @@
+script_name("Farm Bot")
+script_author("Miron Diamond")
+
 require ("moonloader")
 
-script_version = 1.5
+script_version = 1.7
 
 ffi = require("ffi")
 https = require 'ssl.https'
-effil = require("effil")
 dlstatus = require('moonloader').download_status
 memory = require "memory"
 sampev = require "lib.samp.events"
@@ -154,10 +156,6 @@ FARM = {
 	}
 }
 
-VK_USER = "238033416"
-VK_GROUP = "204756711"
-VK_TOKEN = "547c5b821b17f085a449042dff96427d557e84e049e81787f5d45dbef28b353c7ce7cdc341bd3bc8bf1e8"
-
 BOT_MODE = 0
 CURRENT_FARM = 0
 BOT_MODE_SET_ID = -1
@@ -183,19 +181,20 @@ function main()
 	while not isSampAvailable() do wait(0) end
 	LAST_NICK = sampGetPlayerNickname(MyID())
 	LAST_PASSWORD = "Error"
-	sampProcessChatInput("/fconnect 1 75")
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {8B008B}Miron Diamond", 0x800080)
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Команды: {8B008B}/bot{FFFFFF} | {8B008B}/botstop{FFFFFF} | {8B008B}/botoff{FFFFFF}", 0x800080)
 	math.randomseed(os.clock())
 	AutoUpdate()
 	Register_Thread()
 	Register_Commands()
-	VK_CONNECT()
-	while not key do wait(10) end
-	loop_async_http_request(server .. '?act=a_check&key=' .. key .. '&ts=' .. ts .. '&wait=25', '')
 	while true do
 		local chatstring = sampGetChatString(99)
   	if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
+			T_Search:terminate()
+			T_Doctor:terminate()
+			BOT_MODE = 0
+			CURRENT_FARM = 0
+			BOT_MODE_SET_ID = -1
 			sampDisconnectWithReason(false)
 			wait(100)
 			LAST_NICK = getRPNick()
@@ -204,8 +203,13 @@ function main()
       sampSetGamestate(1)
   	end
 
-		if sampGetPlayerScore(MyID()) >= 2 then
-			sampDisconnectWithReason(false)
+		if sampGetPlayerScore(MyID()) >= 1 and sampIsLocalPlayerSpawned() then
+			T_Search:terminate()
+			T_Doctor:terminate()
+			BOT_MODE = 0
+			CURRENT_FARM = 0
+			BOT_MODE_SET_ID = -1
+			sampDisconnectWithReason(1)
 			wait(100)
 			LAST_NICK = getRPNick()
 			sampSetLocalPlayerName(LAST_NICK)
@@ -252,30 +256,35 @@ end
 
 function Register_Commands()
 	sampRegisterChatCommand("bot", function(arg)
+		test:run()
 		ffi.C.SetWindowTextA(ffi.C.GetActiveWindow(), sampGetCurrentServerName())
-		if tonumber(arg) then
-			arg = tonumber(arg)
-			if arg <= 5 and arg >= 1 then
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..arg.."{FFFFFF}.", 0x800080)
-				CURRENT_FARM = arg
-				T_Search:run()
+		if CURRENT_FARM == 0 then
+			if tonumber(arg) then
+				arg = tonumber(arg)
+				if arg <= 5 and arg >= 1 then
+					sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..arg.."{FFFFFF}.", 0x800080)
+					CURRENT_FARM = arg
+					T_Search:run()
+				else
+					sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: /bot {8B008B}[1-5]{FFFFFF}.", 0x800080)
+				end
 			else
-				sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: /bot {8B008B}[1-5]{FFFFFF}.", 0x800080)
+				lua_thread.create(function()
+					sampSendChat("/gps")
+					while CURRENT_FARM >= 5 or CURRENT_FARM == 0 do wait(0) end
+					placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
+					wait(1500)
+					sampProcessChatInput("/cm")
+					local x, y, z = getCharCoordinates(PLAYER_PED)
+					while CURRENT_FARM >= 5 or CURRENT_FARM == 0 do wait(0) end
+					while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 4 do wait(2000)
+						x, y, z = getCharCoordinates(PLAYER_PED)
+					end
+					T_Search:run()
+				end)
 			end
 		else
-			lua_thread.create(function()
-				CURRENT_FARM = 0
-				sampSendChat("/gps")
-				while CURRENT_FARM == 0 do wait(0) end
-				placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
-				wait(1500)
-				sampProcessChatInput("/cm")
-				local x, y, z = getCharCoordinates(PLAYER_PED)
-				while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 4 do wait(2000)
-					x, y, z = getCharCoordinates(PLAYER_PED)
-				end
-				T_Search:run()
-			end)
+			sampAddChatMessage("[Farm Bot]{FFFFFF} Ошибка! Бот уже активирован.", 0x800080)
 		end
 	end)
 
@@ -322,10 +331,9 @@ function Register_Thread()
 			if wait_check >= 60 then
 				if CURRENT_FARM > 0 then
 					T_Search:terminate()
+					BOT_MODE = 0
 					wait_check = 0
-					sampAddChatMessage("[Farm Bot]{FFFFFF} Сработала защита от простоя! Перезагрузка..", 0x800080)
-					wait(500)
-					VK_SEND("Сработала защита от простоя! Перезагрузка..")
+					sampAddChatMessage("[Farm Bot]{FFFFFF} Сработала защита от простоя! Перезагрузка", 0x800080)
 					wait(500)
 					placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
 					wait(1000)
@@ -354,133 +362,19 @@ function Register_Thread()
 	end)
 end
 
--- VK
-
-function VK_SEND(msg)
-	msg = msg:gsub('{......}', '')
-	msg = u8(msg)
-	msg = url_encode(msg)
-	local keyboard = VK_KEYBOARD()
-	keyboard = u8(keyboard)
-	keyboard = url_encode(keyboard)
-	msg = msg .. '&keyboard=' .. keyboard
-	async_http_request('https://api.vk.com/method/messages.send', 'user_id=' .. VK_USER .. '&message=' .. msg .. '&access_token=' .. VK_TOKEN .. '&v=5.80',	function (result)
-		local t = decodeJson(result)
-		if not t then
-			return
-		end
-	end)
-end
-
-function VK_READ(result)
-	if result then
-		local t = decodeJson(result)
-		if t.ts then
-			ts = t.ts
-		end
-		for k, v in ipairs(t.updates) do
-			if v.type == 'message_new' and v.object.text then
-				local text = v.object.text .. ' '
-				local user_id = tostring(v.object.from_id)
-				text = u8:decode(text)
-				if user_id == VK_USER then
-					if text:find("/chatlog") then
-						CHATLOG = not CHATLOG
-						if CHATLOG then
-							VK_SEND("Команда распознана! Мониторинг действий активирован.")
-						else
-							VK_SEND("Команда распознана! Мониторинг действий деактивирован.")
-						end
-					elseif text:find("/stats") then
-						VK_SEND("Команда распознана! Высылаю статистику персонажа:\n[1] Сервер: "..sampGetCurrentServerName().."\n[2] Ник: "..sampGetPlayerNickname(MyID()).."("..MyID()..")\n[3] Здоровье: "..sampGetPlayerHealth(MyID()).."%\n[4] Деньги: "..getPlayerMoney(PLAYER_CHAR).."$")
-					elseif text:find("Включить") then
-						local x, y = getCharCoordinates(PLAYER_PED)
-						for id, data in ipairs(FARM) do
-							if isCoordInArea2d(x, y, FARM[id].corners[1].x, FARM[id].corners[1].y, FARM[id].corners[2].x, FARM[id].corners[2].y) then
-								VK_SEND("Команда распознана! Бот начал работать на ферме №"..id..".")
-								CURRENT_FARM = id
-								T_Search:run()
-								break
-							elseif id == 5 then
-								VK_SEND("Ошибка! Вы находитесь не на ферме.")
-							end
-						end
-					elseif text:find("Остановить") then
-						VK_SEND("Команда распознана! Бот остановлен.")
-						T_Search:terminate()
-						T_Doctor:terminate()
-					elseif text:find("Выключить") then
-						VK_SEND("Команда распознана! Бот отключен.")
-						thisScript():unload()
-					elseif text:find("/send (.+)") then
-						local text = text:match("/send (.+)")
-						if text then
-							sampProcessChatInput(text)
-							VK_SEND("Сообщение отправлено на сервер!")
-						else
-							VK_SEND("Введите сообщение которе нужно отправить на сервер.")
-						end
-					else
-						VK_SEND("Команды бота:\n1. /stats\n2. /chatlog\n3. /send")
-					end
-				end
-			end
-		end
-	end
-end
-
-function VK_CONNECT()
-	async_http_request('https://api.vk.com/method/groups.getLongPollServer?group_id=' .. VK_GROUP .. '&access_token=' .. VK_TOKEN .. '&v=5.80', '', function (result)
-		if result then
-			if not result:sub(1,1) == '{' then
-				return
-			end
-			local t = decodeJson(result)
-			if t.error then
-				return
-			end
-			server = t.response.server
-			ts = t.response.ts
-			key = t.response.key
-		end
-	end)
-end
-
-function VK_KEYBOARD()
-	local keyboard = {}
-	keyboard.one_time = false
-	keyboard.buttons = {}
-	keyboard.buttons[1] = {}
-	local row = keyboard.buttons[1]
-	row[1] = {}
-	row[1].action = {}
-	row[1].color = 'positive'
-	row[1].action.type = 'text'
-	row[1].action.payload = '{"button": "status"}'
-	row[1].action.label = 'Включить'
-	row[2] = {}
-	row[2].action = {}
-	row[2].color = 'primary'
-	row[2].action.type = 'text'
-	row[2].action.payload = '{"button": "status"}'
-	row[2].action.label = 'Остановить'
-	row[3] = {}
-	row[3].action = {}
-	row[3].color = 'negative'
-	row[3].action.type = 'text'
-	row[3].action.payload = '{"button": "status"}'
-	row[3].action.label = 'Выключить'
-	return encodeJson(keyboard)
-end
-
 -- Events
 
 function sampev.onShowDialog(id, style, title, button1, button2, text)
 	if text:find("Админ") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
+		sampAddChatMessage("[Farm Bot]{FFFFFF} Внимание! К вам обратился администратор.", 0x800080)
 		T_Search:terminate()
 		T_Doctor:terminate()
-		T_Answer_Dialog:run()
+		BOT_MODE = 0
+		CURRENT_FARM = 0
+		BOT_MODE_SET_ID = -1
+		if text:find("тут") or text:find("здесь") then
+			T_Answer_Dialog:run()
+		end
 	end
 
 	if BOT_MODE_SET_ID ~= -1 then
@@ -579,33 +473,6 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 end
 
 function sampev.onServerMessage(color, text)
-	if CHATLOG then
-		if text:find("%[Информация%] {ffffff}Вы выполнили задание") or text:find("Администратор") or text:find("%[Информация%] {ffffff}") then
-			VK_SEND("[Чат]: "..text)
-		end
-	end
-
-	if text:find("%[Ошибка%] {ffffff}Сначала отнесите урожай в амбар%.") then
-		RUN_AMBAR = true
-	end
-
-	if text:find("телепортировал вас") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
-		T_Search:terminate()
-		T_Doctor:terminate()
-		lua_thread.create(function()
-			wait(2000)
-			sampSendChat("эээээээээээээээ")
-		end)
-	end
-
-	if (text:find("тут") or text:find("здесь")) and text:find("Администратор") and text:find("%?") then
-		VK_SEND("ВНИМАНИЕ! К вам обратился администратор, бот остановлен.\nСервер: "..sampGetCurrentServerName())
-		T_Search:terminate()
-		T_Doctor:terminate()
-		T_Answer_Msg:run()
-	end
-
 	if BOT_MODE ~= 0 then
 		if text:find("%[Информация%] {ffffff}Вы вернули в амбар инструмент:") then
 			Alt()
@@ -614,8 +481,12 @@ function sampev.onServerMessage(color, text)
 		end
 	end
 
-	if (text:find('Тут еще рано собирать урожай') or text:find('у вас уже есть в руках урожай') or text:find('Тут уже работает другой игрок') or text:find("%[Ошибка%] {ffffff}Сейчас нет заданий")) then
+	if (text:find('Тут еще рано собирать урожай') or text:find('у вас уже есть в руках урожай') or text:find('Тут уже работает другой игрок') or text:find("%[Ошибка%] {ffffff}Сейчас нет заданий") or text:find('У вас нет саженца')) then
 		BOT_ERROR = true
+	end
+
+	if text:find("%[Ошибка%] {ffffff}Сначала отнесите урожай в амбар%.") then
+		RUN_AMBAR = true
 	end
 
 	if text:find("%[Ошибка%] {ffffff}У вас должно быть полное ведро воды%. Наберите воды с бочки%.") then
@@ -626,8 +497,16 @@ function sampev.onServerMessage(color, text)
 		COLLECT_WATER = false
 	end
 
-	if text:find('Вы не можете выкопать урожай без лопаты') or text:find('Вы не можете выкопать ямку без лопаты') or text:find('У вас нет саженца') or text:find('Для начала возьмите ведро') or text:find('Для прополки нужны грабли') then
-		BOT_RELOAD_MODE = true
+	if text:find('Вы не можете выкопать урожай без лопаты') or text:find('Вы не можете выкопать ямку без лопаты') or text:find('Для начала возьмите ведро') or text:find('Для прополки нужны грабли') then
+		if BOT_MODE == 1 and (text:find('Вы не можете выкопать урожай без лопаты') or text:find('Вы не можете выкопать ямку без лопаты')) then
+			BOT_RELOAD_MODE = true
+		elseif BOT_MODE == 2 and text:find('Для прополки нужны грабли') then
+			BOT_RELOAD_MODE = true
+		elseif BOT_MODE == 3 and text:find('Для начала возьмите ведро') then
+			BOT_RELOAD_MODE = true
+		else
+			BOT_ERROR = true
+		end
 	end
 end
 
@@ -652,8 +531,6 @@ function sampev.onShowTextDraw(id, data)
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Успешно зарегистрирован новый аккаунт!", 0x800080)
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Ник: {8B008B}"..LAST_NICK.."{FFFFFF} | Пароль: {8B008B}"..LAST_PASSWORD.."", 0x800080)
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Сервер: {8B008B}"..sampGetCurrentServerName().."", 0x800080)
-			wait(100)
-			VK_SEND("Успешно зарегистрирован новый аккаунт!\nНик: "..LAST_NICK.." | Пароль: "..LAST_PASSWORD.."\nСервер: "..sampGetCurrentServerName().."")
 			wait(500)
 			saveAccount()
 			wait(5000)
@@ -676,8 +553,8 @@ function Search()
 	memory.fill(5499528, 144, 6, false)
 	if CURRENT_FARM ~= 0 then
 		if getCharModel(PLAYER_PED) ~= 132 and getCharModel(PLAYER_PED) ~= 198 then
-			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 			BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
 			BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
 			wait(2000)
@@ -695,14 +572,303 @@ function Search()
 			wait(8000)
 			BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
 			BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
-			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+			BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 		end
 
 		while true do wait(1000)
-			if HUNGRY_MODE then
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
+			if BOT_MODE < 3 then
+				BOT_MODE = BOT_MODE + 1
+			else
+				BOT_MODE = 1
+			end
+
+			if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+				RUN_AMBAR = false
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+			end
+
+			if BOT_MODE == 1 then
+				for i = 0, 2048 do
+					if sampIs3dTextDefined(i) then
+						local check = '[REMOVE COSTUMES]'
+						local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
+						if (text:find("можно собрать урожай") or text:find("свободное")) and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
+							if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
+								wait(2000)
+								Alt()
+								wait(6000)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(728.35949707031, 1796.3908691406, 0.7, false, false)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								wait(1000)
+								Alt()
+								BUY_EAT = true
+								while BUY_EAT and sampIsDialogActive() do wait(0) end
+								HUNGRY_MODE = false
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
+								wait(4000)
+								Alt()
+								for i, v in ipairs(getAllVehicles()) do deleteCar(v) end
+								wait(8000)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							BeginToPoint(posX, posY, 2.6, true, false)
+							while sampGetPlayerAnimationId(MyID()) ~= 1548 and BOT_MODE_SET_ID == -1 do
+								if BOT_ERROR then
+								 BOT_ERROR = false
+								 break
+								elseif RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+									RUN_AMBAR = false
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+									while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+								 	break
+								elseif BOT_RELOAD_MODE then
+								 BOT_RELOAD_MODE = false
+								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								 BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								 BOT_MODE_SET_ID = 1
+								 while BOT_MODE_SET_ID ~= -1 do wait(0) end
+								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+								 break
+								else
+								 Alt()
+							 	end
+								wait(1000)
+						  end
+							if sampGetPlayerAnimationId(MyID()) == 1548 then
+								while sampGetPlayerAnimationId(MyID()) == 1548 do wait(0) end
+								wait(1000)
+								if sampGetPlayerAnimationId(MyID()) == 368 then
+									while sampGetPlayerAnimationId(MyID()) == 368 do wait(0) end
+									if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+										RUN_AMBAR = false
+										BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+										BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+										BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+										while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+										BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+										BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+									end
+								end
+							end
+						end
+					end
+				end
+			elseif BOT_MODE == 2 then
+				for i = 0, 2048 do
+					if sampIs3dTextDefined(i) then
+						local check = '[REMOVE COSTUMES]'
+						local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
+						if text:find("для начала роста необходимо прополоть") and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
+							if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
+								wait(2000)
+								Alt()
+								wait(6000)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(728.35949707031, 1796.3908691406, 0.7, false, false)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								wait(1000)
+								Alt()
+								BUY_EAT = true
+								while BUY_EAT and sampIsDialogActive() do wait(0) end
+								HUNGRY_MODE = false
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
+								wait(4000)
+								Alt()
+								for i, v in ipairs(getAllVehicles()) do deleteCar(v) end
+								wait(8000)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							BeginToPoint(posX, posY, 2.6, true, false)
+							while sampGetPlayerAnimationId(MyID()) ~= 1548 and BOT_MODE_SET_ID == -1 do
+								if BOT_ERROR then
+									BOT_ERROR = false
+									break
+							 	elseif BOT_RELOAD_MODE then
+									BOT_RELOAD_MODE = false
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+									BOT_MODE_SET_ID = 2
+									while BOT_MODE_SET_ID ~= -1 do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+									break
+								elseif RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+									RUN_AMBAR = false
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+									while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+								 	break
+								else
+								 Alt()
+								end
+								wait(1000)
+							end
+							if sampGetPlayerAnimationId(MyID()) == 1548 then
+								while sampGetPlayerAnimationId(MyID()) == 1548 do wait(0) end
+							end
+						end
+					end
+				end
+			elseif BOT_MODE == 3 then
+				for i=0, 2048 do
+					if sampIs3dTextDefined(i) then
+					 local check = '[REMOVE COSTUMES]'
+					 local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
+						if text:find("для начала роста необходимо полить") and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
+							if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+								RUN_AMBAR = false
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
+								wait(2000)
+								Alt()
+								wait(6000)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(728.35949707031, 1796.3908691406, 0.7, false, false)
+								BeginToPoint(729.77056884766, 1799.6590576172, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								wait(1000)
+								Alt()
+								BUY_EAT = true
+								while BUY_EAT and sampIsDialogActive() do wait(0) end
+								HUNGRY_MODE = false
+								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
+								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
+								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
+								wait(4000)
+								Alt()
+								for i, v in ipairs(getAllVehicles()) do deleteCar(v) end
+								wait(8000)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+							end
+							BeginToPoint(posX, posY, 2.6, true, false)
+							while sampGetPlayerAnimationId(MyID()) ~= 532 and BOT_MODE_SET_ID == -1 do
+								if BOT_ERROR then
+									BOT_ERROR = false
+									break
+							 	elseif BOT_RELOAD_MODE then
+									BOT_RELOAD_MODE = false
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+									BOT_MODE_SET_ID = 3
+									while BOT_MODE_SET_ID ~= -1 do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+									break
+								elseif COLLECT_WATER then
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barrel.x, FARM[CURRENT_FARM].barrel.y, 0.7, false, false)
+									while COLLECT_WATER do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+									break
+								elseif RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+									RUN_AMBAR = false
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+									while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+								 	break
+								else
+								 Alt()
+								end
+								wait(1000)
+							end
+							if sampGetPlayerAnimationId(MyID()) == 532 then
+								while sampGetPlayerAnimationId(MyID()) == 532 do wait(0) end
+							end
+						end
+					end
+				end
+			end
+
+			if RUN_AMBAR or sampGetPlayerSpecialAction(MyID()) ~= 0 then
+				RUN_AMBAR = false
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
+				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
+			end
+
+			if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.to_home[2].x, FARM[CURRENT_FARM].run.to_home[2].y, 0.7, false, false)
 				wait(2000)
@@ -727,173 +893,8 @@ function Search()
 				wait(8000)
 				BeginToPoint(FARM[CURRENT_FARM].run.from_home[1].x, FARM[CURRENT_FARM].run.from_home[1].y, 4, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.from_home[2].x, FARM[CURRENT_FARM].run.from_home[2].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-			end
-
-			if BOT_MODE < 3 then
-				BOT_MODE = BOT_MODE + 1
-			else
-				BOT_MODE = 1
-			end
-
-			if RUN_AMBAR then
-				RUN_AMBAR = false
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-			end
-			if BOT_MODE == 1 then
-				for i = 0, 2048 do
-					if sampIs3dTextDefined(i) then
-						local check = '[REMOVE COSTUMES]'
-						local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
-						if (text:find("можно собрать урожай") or text:find("свободное")) and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
-							if RUN_AMBAR then
-								RUN_AMBAR = false
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-							end
-							BeginToPoint(posX, posY, 2.6, true, false)
-							while sampGetPlayerAnimationId(MyID()) ~= 1548 and BOT_MODE_SET_ID == -1 do
-								if BOT_ERROR then
-								 BOT_ERROR = false
-								 break
-								elseif RUN_AMBAR then
-								 break
-								elseif BOT_RELOAD_MODE then
-								 BOT_RELOAD_MODE = false
-								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								 BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-								 BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-								 BOT_MODE_SET_ID = 1
-								 while BOT_MODE_SET_ID ~= -1 do wait(0) end
-								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-								 BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-								 break
-								else
-								 Alt()
-							 end
-							 wait(1000)
-						  end
-							if RUN_AMBAR then
-								RUN_AMBAR = false
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-							end
-						end
-					end
-				end
-			elseif BOT_MODE == 2 then
-				for i = 0, 2048 do
-					if sampIs3dTextDefined(i) then
-						local check = '[REMOVE COSTUMES]'
-						local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
-						if text:find("для начала роста необходимо прополоть") and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
-							BeginToPoint(posX, posY, 2.6, true, false)
-							while sampGetPlayerAnimationId(MyID()) ~= 1548 and BOT_MODE_SET_ID == -1 do
-								if BOT_ERROR then
-									BOT_ERROR = false
-									break
-							 	elseif BOT_RELOAD_MODE then
-									BOT_RELOAD_MODE = false
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-									BOT_MODE_SET_ID = 2
-									while BOT_MODE_SET_ID ~= -1 do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-									break
-								elseif RUN_AMBAR then
-								 break
-								else
-								 Alt()
-								end
-								wait(1000)
-							end
-							while sampGetPlayerAnimationId(MyID()) == 1548 do wait(0) end
-							if RUN_AMBAR then
-								RUN_AMBAR = false
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-							end
-						end
-					end
-				end
-			elseif BOT_MODE == 3 then
-				for i=0, 2048 do
-					if sampIs3dTextDefined(i) then
-					 local check = '[REMOVE COSTUMES]'
-					 local text, color, posX, posY, posZ, distance, ignoreWalls, playerId, vehicleId = sampGet3dTextInfoById(i)
-						if text:find("для начала роста необходимо полить") and isCoordInArea2d(posX, posY, FARM[CURRENT_FARM].corners[1].x, FARM[CURRENT_FARM].corners[1].y, FARM[CURRENT_FARM].corners[2].x, FARM[CURRENT_FARM].corners[2].y) then
-							BeginToPoint(posX, posY, 2.6, true, false)
-							while sampGetPlayerAnimationId(MyID()) ~= 532 and BOT_MODE_SET_ID == -1 do
-								if BOT_ERROR then
-									BOT_ERROR = false
-									break
-							 	elseif BOT_RELOAD_MODE then
-									BOT_RELOAD_MODE = false
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-									BOT_MODE_SET_ID = 3
-									while BOT_MODE_SET_ID ~= -1 do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-									break
-								elseif COLLECT_WATER then
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].barrel.x, FARM[CURRENT_FARM].barrel.y, 0.7, false, false)
-									while COLLECT_WATER do wait(0) end
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-									BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-									break
-								elseif RUN_AMBAR then
-								 break
-								else
-								 Alt()
-								end
-								wait(1000)
-							end
-							while sampGetPlayerAnimationId(MyID()) == 532 do wait(0) end
-							if RUN_AMBAR then
-								RUN_AMBAR = false
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-								while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
-							end
-						end
-					end
-				end
-			end
-			if RUN_AMBAR then
-				RUN_AMBAR = false
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].barn.x, FARM[CURRENT_FARM].barn.y, 0.5, false, false)
-				while sampGetPlayerSpecialAction(MyID()) ~= 0 do wait(0) end
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 4, true, false)
-				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 4, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
+				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 			end
 		end
 	end
@@ -1000,67 +1001,6 @@ function getWord()
     end
     word = word:lower()
     return word:gsub("^%l", string.upper)
-end
-
-function requestRunner()
-	return effil.thread(function(u, a)
-		local https = require 'ssl.https'
-		local ok, result = pcall(https.request, u, a)
-		if ok then
-			return {true, result}
-		else
-			return {false, result}
-		end
-	end)
-end
-
-function threadHandle(runner, url, args, resolve, reject)
-	local t = runner(url, args)
-	local r = t:get(0)
-	while not r do
-		r = t:get(0)
-		wait(0)
-	end
-	local status = t:status()
-	if status == 'completed' then
-		local ok, result = r[1], r[2]
-		if ok then resolve(result) else reject(result) end
-	elseif err then
-		reject(err)
-	elseif status == 'canceled' then
-		reject(status)
-	end
-	t:cancel(0)
-end
-
-function async_http_request(url, args, resolve, reject)
-	local runner = requestRunner()
-	if not reject then reject = function() end end
-	lua_thread.create(function()
-		threadHandle(runner, url, args, resolve, reject)
-	end)
-end
-
-function loop_async_http_request(url, args, reject)
-	local runner = requestRunner()
-	if not reject then reject = function() end end
-	lua_thread.create(function()
-		while true do
-			while not key do wait(0) end
-			url = server .. '?act=a_check&key=' .. key .. '&ts=' .. ts .. '&wait=25'
-			threadHandle(runner, url, args, VK_READ, reject)
-		end
-	end)
-end
-
-function char_to_hex(str)
-  return string.format("%%%02X", string.byte(str))
-end
-
-function url_encode(str)
-  local str = string.gsub(str, "\\", "\\")
-  local str = string.gsub(str, "([^%w])", char_to_hex)
-  return str
 end
 
 function round(number)
