@@ -3,7 +3,7 @@ script_author("Miron Diamond")
 
 require ("moonloader")
 
-script_version = 1.7
+script_version = 1.8
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -188,6 +188,8 @@ function main()
 	Register_Thread()
 	Register_Commands()
 	while true do
+		memory.setint8(0xB7CEE4, 1)
+
 		local chatstring = sampGetChatString(99)
   	if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
 			T_Search:terminate()
@@ -270,7 +272,7 @@ function Register_Commands()
 			else
 				lua_thread.create(function()
 					sampSendChat("/gps")
-					while CURRENT_FARM >= 5 or CURRENT_FARM == 0 do wait(0) end
+					while CURRENT_FARM > 5 or CURRENT_FARM == 0 do wait(0) end
 					placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
 					wait(1500)
 					sampProcessChatInput("/cm")
@@ -346,18 +348,14 @@ function Register_Thread()
 		end
 	end)
 
-	T_Answer_Msg = lua_thread.create_suspended(function()
-		local ans_number = math.random(1, 9)
-		wait(2405)
-		sampSendChat(ANSWER[ans_number])
-	end)
-
 	T_Answer_Dialog = lua_thread.create_suspended(function()
 		wait(1201)
 		sampSendDialogResponse(id, 0, -1, -1)
 		wait(2405)
 		local ans_number = math.random(1, 8)
 		sampSendChat(ANSWER[ans_number])
+		wait(45000)
+		sampProcessChatInput("/bot")
 	end)
 end
 
@@ -402,7 +400,7 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 	end
 
 	if title:find("Выберите еду") then
-		BUY_EAT = true
+		BUY_EAT = false
 		sampSendDialogResponse(id, 1, 6, -1)
 		return false
 	end
@@ -515,12 +513,6 @@ function sampev.onSetPlayerSpecialAction(id)
 	end
 end
 
-function sampev.onDisplayGameText(style, time, text)
-	if text:find("hungry") then
-		HUNGRY_MODE = true
-	end
-end
-
 function sampev.onShowTextDraw(id, data)
 	if id == 625 then
 		lua_thread.create(function()
@@ -607,7 +599,7 @@ function Search()
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 							end
-							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+							if getCharHealth(PLAYER_PED) < 50 then
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
@@ -624,7 +616,7 @@ function Search()
 								Alt()
 								BUY_EAT = true
 								while BUY_EAT and sampIsDialogActive() do wait(0) end
-								HUNGRY_MODE = false
+								BUY_EAT = false
 								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
 								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
 								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
@@ -700,7 +692,7 @@ function Search()
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 							end
-							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+							if getCharHealth(PLAYER_PED) < 50 then
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
@@ -717,7 +709,7 @@ function Search()
 								Alt()
 								BUY_EAT = true
 								while BUY_EAT and sampIsDialogActive() do wait(0) end
-								HUNGRY_MODE = false
+								BUY_EAT = false
 								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
 								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
 								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
@@ -780,7 +772,7 @@ function Search()
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[1].x, FARM[CURRENT_FARM].run.to_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 							end
-							if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+							if getCharHealth(PLAYER_PED) < 50 then
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 								BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
@@ -797,7 +789,7 @@ function Search()
 								Alt()
 								BUY_EAT = true
 								while BUY_EAT and sampIsDialogActive() do wait(0) end
-								HUNGRY_MODE = false
+								BUY_EAT = false
 								BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
 								BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
 								BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
@@ -865,7 +857,7 @@ function Search()
 				BeginToPoint(FARM[CURRENT_FARM].run.to_farm[2].x, FARM[CURRENT_FARM].run.to_farm[2].y, 2.1, true, false)
 			end
 
-			if HUNGRY_MODE or getCharHealth(PLAYER_PED) < 50 then
+			if getCharHealth(PLAYER_PED) < 50 then
 				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[1].x, FARM[CURRENT_FARM].run.from_farm[1].y, 2.1, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.from_farm[2].x, FARM[CURRENT_FARM].run.from_farm[2].y, 2.1, true, false)
 				BeginToPoint(FARM[CURRENT_FARM].run.to_home[1].x, FARM[CURRENT_FARM].run.to_home[1].y, 4, true, false)
@@ -882,7 +874,7 @@ function Search()
 				Alt()
 				BUY_EAT = true
 				while BUY_EAT and sampIsDialogActive() do wait(0) end
-				HUNGRY_MODE = false
+				BUY_EAT = false
 				BeginToPoint(728.91998291016, 1803.9387207031, 0.7, false, false)
 				BeginToPoint(730.60260009766, 1803.9473876953, 0.7, false, false)
 				BeginToPoint(728.13708496094, 1799.6501464844, 0.7, false, false)
