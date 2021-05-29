@@ -203,7 +203,7 @@ function main()
       sampSetGamestate(1)
   	end
 
-		if sampGetPlayerScore(MyID()) >= 1 and sampIsLocalPlayerSpawned() then
+		if sampGetPlayerScore(MyID()) >= 2 and sampIsLocalPlayerSpawned() then
 			T_Search:terminate()
 			T_Doctor:terminate()
 			BOT_MODE = 0
@@ -256,7 +256,6 @@ end
 
 function Register_Commands()
 	sampRegisterChatCommand("bot", function(arg)
-		test:run()
 		ffi.C.SetWindowTextA(ffi.C.GetActiveWindow(), sampGetCurrentServerName())
 		if CURRENT_FARM == 0 then
 			if tonumber(arg) then
