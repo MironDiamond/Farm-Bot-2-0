@@ -224,7 +224,7 @@ function main()
 					Alt()
 				end
 			end
-			if not BOT_ERROR and BOT_MODE == 3 and COLLECT_WATER then
+			if BOT_MODE == 3 and COLLECT_WATER then
 				local mx, my, mz = getCharCoordinates(PLAYER_PED)
 				if getDistanceBetweenCoords2d(mx, my, FARM[CURRENT_FARM].barrel.x, FARM[CURRENT_FARM].barrel.y) < 7 then
 					Alt()
@@ -492,7 +492,7 @@ function sampev.onServerMessage(color, text)
 		COLLECT_WATER = true
 	end
 
-	if text:find("%[Информация%] {ffffff}Вы набрали полное ведро воды%.") then
+	if text:find("%[Информация%] {ffffff}Вы набрали полное ведро воды%.") or text:find("У вас итак полное ведро воды%.") then
 		COLLECT_WATER = false
 	end
 
