@@ -1,9 +1,9 @@
 script_name("Farm Bot")
 script_author("Miron Diamond")
 
-require ("moonloader")
+require("moonloader")
 
-script_version = 1.9
+script_version = 2.0
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -177,7 +177,6 @@ ffi.cdef [[
 function main()
 	if not isSampLoaded() or not isSampfuncsLoaded() then return end
 	while not isSampAvailable() do wait(0) end
-	sampProcessChatInput("/fconnect 1 75")
 	LAST_NICK = sampGetPlayerNickname(MyID())
 	LAST_PASSWORD = "Error"
 	sampAddChatMessage("[Farm Bot]{FFFFFF} Скрипт успешно активирован! | Автор: {8B008B}Miron Diamond", 0x800080)
@@ -186,6 +185,10 @@ function main()
 	AutoUpdate()
 	Register_Thread()
 	Register_Commands()
+	lua_thread.create(function()
+		wait(7000)
+		sampProcessChatInput("/fconnect 1 75")
+	end)
 	T_AutoReconnect:run()
 	while true do
 		memory.setint8(0xB7CEE4, 1)
@@ -241,20 +244,7 @@ function Register_Commands()
 					sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: /bot {8B008B}[1-5]{FFFFFF}.", 0x800080)
 				end
 			else
-				lua_thread.create(function()
-					sampSendChat("/gps")
-					while CURRENT_FARM > 5 or CURRENT_FARM == 0 do wait(0) end
-					placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
-					wait(1500)
-					sampProcessChatInput("/cm")
-					local x, y, z = getCharCoordinates(PLAYER_PED)
-					while CURRENT_FARM > 5 or CURRENT_FARM == 0 do wait(0) end
-					while getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 5 do wait(2000)
-						x, y, z = getCharCoordinates(PLAYER_PED)
-					end
-					wait(1000)
-					T_Search:run()
-				end)
+				T_Teleport:run()
 			end
 		else
 			sampAddChatMessage("[Farm Bot]{FFFFFF} Ошибка! Бот уже активирован.", 0x800080)
@@ -361,6 +351,26 @@ function Register_Thread()
 		sampSendChat(ANSWER[ans_number])
 		wait(45000)
 		sampProcessChatInput("/bot")
+	end)
+
+	T_Teleport = lua_thread.create_suspended(function()
+		sampSendChat("/gps")
+		while CURRENT_FARM > 5 or CURRENT_FARM == 0 do wait(0) end
+		placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
+		wait(1500)
+		sampProcessChatInput("/cm")
+		while true do wait(2000)
+			if CURRENT_FARM > 0 then
+				local x, y, z = getCharCoordinates(PLAYER_PED)
+				if getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) > 5 then
+					break
+				else
+					x, y, z = getCharCoordinates(PLAYER_PED)
+				end
+			end
+		end
+		wait(1000)
+		T_Search:run()
 	end)
 end
 
