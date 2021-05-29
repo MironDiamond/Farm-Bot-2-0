@@ -3,7 +3,7 @@ script_author("Miron Diamond")
 
 require("moonloader")
 
-script_version = 2.0
+script_version = 2.1
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -255,6 +255,7 @@ function Register_Commands()
 		sampAddChatMessage("[Farm Bot]{FFFFFF} Бот остановлен.", 0x800080)
 		T_Search:terminate()
 		T_Doctor:terminate()
+		T_Teleport:terminate()
 		BOT_MODE = 0
 		CURRENT_FARM = 0
 		BOT_MODE_SET_ID = -1
@@ -275,6 +276,7 @@ function Register_Thread()
 			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
 				T_Search:terminate()
 				T_Doctor:terminate()
+				T_Teleport:terminate()
 				BOT_MODE = 0
 				CURRENT_FARM = 0
 				BOT_MODE_SET_ID = -1
@@ -289,6 +291,7 @@ function Register_Thread()
 			if sampGetPlayerScore(MyID()) >= 2 and sampIsLocalPlayerSpawned() and CURRENT_FARM > 0 then
 				T_Search:terminate()
 				T_Doctor:terminate()
+				T_Teleport:terminate()
 				BOT_MODE = 0
 				CURRENT_FARM = 0
 				BOT_MODE_SET_ID = -1
@@ -381,6 +384,7 @@ function sampev.onShowDialog(id, style, title, button1, button2, text)
 		sampAddChatMessage("[Farm Bot]{FFFFFF} Внимание! К вам обратился администратор.", 0x800080)
 		T_Search:terminate()
 		T_Doctor:terminate()
+		T_Teleport:terminate()
 		BOT_MODE = 0
 		CURRENT_FARM = 0
 		BOT_MODE_SET_ID = -1
