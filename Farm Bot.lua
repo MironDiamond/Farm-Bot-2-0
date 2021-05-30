@@ -3,7 +3,7 @@ script_author("Miron Diamond")
 
 require("moonloader")
 
-script_version = 2.3
+script_version = 2.4
 
 ffi = require("ffi")
 https = require 'ssl.https'
