@@ -239,7 +239,7 @@ function Register_Commands()
 				if arg <= 5 and arg >= 1 then
 					sampAddChatMessage("[Farm Bot]{FFFFFF} Бот активирован! Ферма {8B008B}№"..arg.."{FFFFFF}.", 0x800080)
 					CURRENT_FARM = arg
-					T_Search:run()
+					T_С_Teleport:run()
 				else
 					sampAddChatMessage("[Farm Bot]{FFFFFF} Используйте: /bot {8B008B}[1-5]{FFFFFF}.", 0x800080)
 				end
@@ -273,7 +273,7 @@ function Register_Thread()
 	T_AutoReconnect = lua_thread.create_suspended(function()
 		while true do wait(0)
 			local chatstring = sampGetChatString(99)
-			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." then
+			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." or chatstring:find("Server wrong password") then
 				T_Search:terminate()
 				T_Doctor:terminate()
 				T_Teleport:terminate()
@@ -284,7 +284,7 @@ function Register_Thread()
 				wait(100)
 				LAST_NICK = getRPNick()
 				sampSetLocalPlayerName(LAST_NICK)
-				wait(20000)
+				wait(5000)
 				sampSetGamestate(1)
 			end
 
@@ -299,7 +299,7 @@ function Register_Thread()
 				wait(100)
 				LAST_NICK = getRPNick()
 				sampSetLocalPlayerName(LAST_NICK)
-				wait(20000)
+				wait(5000)
 				sampSetGamestate(1)
 			end
 		end
@@ -310,7 +310,7 @@ function Register_Thread()
 		wait(100)
 		LAST_NICK = getRPNick()
 		sampSetLocalPlayerName(LAST_NICK)
-		wait(20000)
+		wait(5000)
 		sampSetGamestate(1)
 	end)
 
@@ -354,6 +354,25 @@ function Register_Thread()
 		sampSendChat(ANSWER[ans_number])
 		wait(45000)
 		sampProcessChatInput("/bot")
+	end)
+
+	T_С_Teleport = lua_thread.create_suspended(function()
+		wait(500)
+		placeWaypoint(FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y, FARM[CURRENT_FARM].teleport.z)
+		wait(1500)
+		sampProcessChatInput("/cm")
+		while true do wait(2000)
+			if CURRENT_FARM > 0 then
+				local x, y, z = getCharCoordinates(PLAYER_PED)
+				if getDistanceBetweenCoords2d(x,y,FARM[CURRENT_FARM].teleport.x, FARM[CURRENT_FARM].teleport.y) < 5 then
+					break
+				else
+					x, y, z = getCharCoordinates(PLAYER_PED)
+				end
+			end
+		end
+		wait(1000)
+		T_Search:run()
 	end)
 
 	T_Teleport = lua_thread.create_suspended(function()
