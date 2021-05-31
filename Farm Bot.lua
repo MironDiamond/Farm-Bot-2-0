@@ -3,7 +3,7 @@ script_author("Miron Diamond")
 
 require("moonloader")
 
-script_version = 2.5
+script_version = 2.6
 
 ffi = require("ffi")
 https = require 'ssl.https'
@@ -273,7 +273,7 @@ function Register_Thread()
 	T_AutoReconnect = lua_thread.create_suspended(function()
 		while true do wait(0)
 			local chatstring = sampGetChatString(99)
-			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." or chatstring:find("Server wrong password") or chatstring:find("Use /quit to exit or press ESC") then
+			if chatstring == "Server closed the connection." or chatstring == "You are banned from this server." or chatstring:find("Server wrong password") or chatstring:find("Use /quit to exit or press") or chatstring:find("Wrong server password") then
 				T_Search:terminate()
 				T_Doctor:terminate()
 				T_Teleport:terminate()
